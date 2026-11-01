@@ -1,0 +1,50 @@
+# Jenkins Configuration as Code (JCasC): everything you'd otherwise click
+# through in the setup wizard, declared here instead. Re-applied on restart.
+jenkins:
+  systemMessage: "Prototype CI: build services, run them, run Robot Framework health tests."
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: "${JENKINS_ADMIN_PASSWORD:-admin}"
+  authorizationStrategy: loggedInUsersCanDoAnything
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+
+# Jobs are declared with the Job DSL plugin. The pipeline job's inline script
+# is only a bootstrap: it copies the mounted repo into the workspace and
+# load()s ci/pipeline.groovy, so pipeline edits take effect on the next build
+# with no Jenkins reconfiguration. When the repo gets a git remote, replace
+# this with a standard "Pipeline from SCM" definition.
+jobs:
+  - script: |
+      pipelineJob('ci') {
+        description('Build both services, run them on a Docker network, run Robot Framework health tests against them.')
+        definition {
+          cps {
+            sandbox(true)
+            script('''
+              node {
+                stage('Sync repo') {
+                  // Refresh the workspace from the read-only repo mount,
+                  // skipping local-dev noise.
+                  sh """
+                    find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+                    tar -C /workspace \\
+                        --exclude='.git' \\
+                        --exclude='.venv' \\
+                        --exclude='robot/results' \\
+                        --exclude='jenkins' \\
+                        -cf - . | tar -xf -
+                  """
+                }
+                load 'ci/pipeline.groovy'
+              }
+            '''.stripIndent())
+          }
+        }
+      }

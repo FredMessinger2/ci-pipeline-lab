@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+robot/results/
+services/java-service/target/
+# machine-specific (docker gid, host repo path, optionally admin password)
+jenkins/.env
